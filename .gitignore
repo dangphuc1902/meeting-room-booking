@@ -1,0 +1,32 @@
+# Build
+target/
+!.mvn/wrapper/maven-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.classpath
+.project
+.settings/
+.factorypath
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets / local config
+.env
+*.local.yml
+
+# Logs
+*.log
+logs/
+
+# Eclipse/VS Code Java annotation-processing output
+.apt_generated/
+.apt_generated_tests/
+
+# Local AI-tool settings
+.claude/

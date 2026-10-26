@@ -1,0 +1,6 @@
+# Keep LF in the repo so shell scripts and the Docker build work when cloned on Windows.
+* text=auto eol=lf
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.jar binary
+*.png binary
