@@ -1,0 +1,11 @@
+# Demo profile: used by docker compose so reviewers get data to play with immediately.
+spring:
+  flyway:
+    locations: classpath:db/migration,classpath:db/demo
+
+app:
+  bootstrap:
+    demo-user:
+      email: user@company.local
+      password: User@123
+      full-name: Demo User
