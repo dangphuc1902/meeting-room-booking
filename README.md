@@ -201,7 +201,7 @@ Base path: `/api/v1`. Chi tiết đầy đủ trên Swagger UI.
 | GET | `/rooms/{id}` | User | Done |
 | POST/PUT | `/rooms`, `/rooms/{id}` | Admin | Done |
 | PATCH | `/rooms/{id}/status` | Admin | Done |
-| GET | `/rooms/availability?start=&end=&minCapacity=&equipment=` | User | TODO |
+| GET | `/rooms/availability?start=&end=&minCapacity=&equipment=` | User (phòng nhỏ nhất vừa đủ đứng đầu; `+` của offset phải gửi là `%2B`) | Done |
 | GET | `/rooms/{id}/schedule?from=&to=` | User | TODO |
 | GET | `/schedule?date=` | User | TODO |
 | POST | `/bookings` | User | Done |
