@@ -57,6 +57,17 @@ mvn verify        # cần Docker đang chạy: integration test dùng Testcontai
 
 > Docker Engine 29+ yêu cầu Docker API ≥ 1.44; `src/test/resources/docker-java.properties` cố định `api.version=1.44` để Testcontainers kết nối được.
 
+### Kiểm thử toàn bộ API bằng Postman
+
+`postman/meeting-room-booking.postman_collection.json` đi qua toàn bộ nghiệp vụ theo thứ tự
+(đăng nhập → user → phòng → đặt phòng và R1–R12 → sửa / optimistic lock → phòng trống, lịch → hủy → ngừng hoạt động phòng),
+70 request, 157 assertion. Ngày đặt phòng được tính tự động (ngày làm việc gần nhất, cách hôm nay ≥ 2 ngày).
+Mỗi lần chạy tạo phòng và user riêng, cuối cùng hủy booking và khóa phòng, user đó, nên chạy lại bao nhiêu lần cũng được.
+
+- Postman: Import file → **Run collection** (chạy theo thứ tự, không chạy lẻ từng request).
+- Dòng lệnh: `npx newman run postman/meeting-room-booking.postman_collection.json`
+- App không chạy ở cổng 8080 (ví dụ `APP_PORT=8081`): đổi biến collection `baseUrl`, hoặc thêm `--env-var baseUrl=http://localhost:8081`.
+
 ---
 
 ## 2. Tech stack
