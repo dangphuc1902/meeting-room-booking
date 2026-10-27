@@ -202,8 +202,8 @@ Base path: `/api/v1`. Chi tiết đầy đủ trên Swagger UI.
 | POST/PUT | `/rooms`, `/rooms/{id}` | Admin | Done |
 | PATCH | `/rooms/{id}/status` | Admin | Done |
 | GET | `/rooms/availability?start=&end=&minCapacity=&equipment=` | User (phòng nhỏ nhất vừa đủ đứng đầu; `+` của offset phải gửi là `%2B`) | Done |
-| GET | `/rooms/{id}/schedule?from=&to=` | User | TODO |
-| GET | `/schedule?date=` | User | TODO |
+| GET | `/rooms/{id}/schedule?from=&to=` | User (mặc định 7 ngày từ hôm nay, tối đa 31) | Done |
+| GET | `/schedule?date=` | User (mọi phòng đang hoạt động trong ngày) | Done |
 | POST | `/bookings` | User | Done |
 | GET/PUT | `/bookings/{id}` | Owner/Admin (PUT cần gửi `version` vừa đọc) | Done |
 | POST | `/bookings/{id}/cancel` | Owner/Admin | Done |

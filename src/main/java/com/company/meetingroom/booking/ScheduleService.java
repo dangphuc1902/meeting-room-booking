@@ -1,15 +1,27 @@
 package com.company.meetingroom.booking;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.company.meetingroom.auth.AuthUser;
+import com.company.meetingroom.booking.dto.DaySchedule;
+import com.company.meetingroom.booking.dto.RoomSchedule;
+import com.company.meetingroom.booking.dto.RoomSchedule.RoomSummary;
+import com.company.meetingroom.booking.dto.ScheduleEntry;
 import com.company.meetingroom.common.error.InvalidRequestException;
+import com.company.meetingroom.common.error.NotFoundException;
 import com.company.meetingroom.room.Equipment;
+import com.company.meetingroom.room.Room;
 import com.company.meetingroom.room.RoomRepository;
 import com.company.meetingroom.room.dto.RoomResponse;
 
@@ -17,12 +29,22 @@ import com.company.meetingroom.room.dto.RoomResponse;
 @Service
 public class ScheduleService {
 
-    private final RoomRepository rooms;
-    private final BookingProperties props;
+    /** Default length of a room schedule when {@code to} is omitted: one week. */
+    private static final int DEFAULT_DAYS = 7;
 
-    public ScheduleService(RoomRepository rooms, BookingProperties props) {
+    private final RoomRepository rooms;
+    private final BookingRepository bookings;
+    private final BookingProperties props;
+    private final Clock clock;
+    private final ZoneId zone;
+
+    public ScheduleService(RoomRepository rooms, BookingRepository bookings, BookingProperties props, Clock clock,
+            ZoneId businessZone) {
         this.rooms = rooms;
+        this.bookings = bookings;
         this.props = props;
+        this.clock = clock;
+        this.zone = businessZone;
     }
 
     /**
@@ -37,6 +59,50 @@ public class ScheduleService {
                 .filter(room -> room.hasAllEquipment(equipment))
                 .map(RoomResponse::of)
                 .toList();
+    }
+
+    /** Days are business-zone dates, both inclusive; defaults to the week starting today. */
+    @Transactional(readOnly = true)
+    public RoomSchedule roomSchedule(AuthUser caller, Long roomId, LocalDate from, LocalDate to) {
+        Room room = rooms.findById(roomId).orElseThrow(() -> new NotFoundException("Room", roomId));
+        LocalDate first = from != null ? from : today();
+        LocalDate last = to != null ? to : first.plusDays(DEFAULT_DAYS - 1);
+        Instant start = startOf(first);
+        Instant end = startOf(last.plusDays(1));
+        requireRange(start, end);
+
+        List<ScheduleEntry> entries = bookings.findOverlapping(roomId, start, end).stream()
+                .map(b -> entry(caller, b))
+                .toList();
+        return new RoomSchedule(RoomSummary.of(room), first, last, zone.getId(), entries);
+    }
+
+    /** Every active room for one day, so clients can draw a full grid; inactive rooms only if still booked. */
+    @Transactional(readOnly = true)
+    public DaySchedule daySchedule(AuthUser caller, LocalDate date) {
+        LocalDate day = date != null ? date : today();
+        Map<Long, List<ScheduleEntry>> byRoom = bookings.findAllOverlapping(startOf(day), startOf(day.plusDays(1)))
+                .stream()
+                .collect(Collectors.groupingBy(b -> b.getRoom().getId(),
+                        Collectors.mapping(b -> entry(caller, b), Collectors.toList())));
+
+        List<DaySchedule.RoomDay> roomDays = rooms.findAllByOrderByNameAsc().stream()
+                .filter(room -> room.isActive() || byRoom.containsKey(room.getId()))
+                .map(room -> new DaySchedule.RoomDay(RoomSummary.of(room), byRoom.getOrDefault(room.getId(), List.of())))
+                .toList();
+        return new DaySchedule(day, zone.getId(), roomDays);
+    }
+
+    private ScheduleEntry entry(AuthUser caller, Booking booking) {
+        return ScheduleEntry.of(booking, zone, caller.isAdmin() || booking.isOwnedBy(caller.id()));
+    }
+
+    private LocalDate today() {
+        return LocalDate.now(clock.withZone(zone));
+    }
+
+    private Instant startOf(LocalDate day) {
+        return day.atStartOfDay(zone).toInstant();
     }
 
     private void requireRange(Instant from, Instant to) {

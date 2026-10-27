@@ -25,4 +25,16 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     List<Booking> findOverlapping(@Param("roomId") Long roomId,
             @Param("from") Instant from,
             @Param("to") Instant to);
+
+    /** CONFIRMED bookings of every room overlapping [from, to), for the daily schedule. */
+    @Query("""
+            select b from Booking b
+            join fetch b.room
+            join fetch b.owner
+            where b.status = com.company.meetingroom.booking.BookingStatus.CONFIRMED
+              and b.startTime < :to
+              and b.endTime > :from
+            order by b.startTime
+            """)
+    List<Booking> findAllOverlapping(@Param("from") Instant from, @Param("to") Instant to);
 }
