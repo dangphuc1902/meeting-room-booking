@@ -197,9 +197,10 @@ Base path: `/api/v1`. Chi tiết đầy đủ trên Swagger UI.
 |---|---|---|---|
 | POST | `/auth/login` | Public | Done |
 | GET | `/auth/me` | User | Done |
-| GET | `/rooms` | User | TODO |
-| POST/PUT | `/rooms`, `/rooms/{id}` | Admin | TODO |
-| PATCH | `/rooms/{id}/status` | Admin | TODO |
+| GET | `/rooms?includeInactive=` | User (`includeInactive` chỉ có tác dụng với Admin) | Done |
+| GET | `/rooms/{id}` | User | Done |
+| POST/PUT | `/rooms`, `/rooms/{id}` | Admin | Done |
+| PATCH | `/rooms/{id}/status` | Admin | Done |
 | GET | `/rooms/availability?start=&end=&minCapacity=&equipment=` | User | TODO |
 | GET | `/rooms/{id}/schedule?from=&to=` | User | TODO |
 | GET | `/schedule?date=` | User | TODO |
