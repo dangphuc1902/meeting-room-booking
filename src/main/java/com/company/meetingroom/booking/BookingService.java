@@ -2,11 +2,17 @@ package com.company.meetingroom.booking;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,8 +23,10 @@ import com.company.meetingroom.booking.dto.BookingResponse;
 import com.company.meetingroom.booking.dto.BookingUpdateRequest;
 import com.company.meetingroom.common.error.BusinessRuleException;
 import com.company.meetingroom.common.error.ConflictException;
+import com.company.meetingroom.common.error.InvalidRequestException;
 import com.company.meetingroom.common.error.NotFoundException;
 import com.company.meetingroom.common.error.PgErrors;
+import com.company.meetingroom.common.web.PageResponse;
 import com.company.meetingroom.room.Room;
 import com.company.meetingroom.room.RoomRepository;
 import com.company.meetingroom.user.User;
@@ -108,6 +116,54 @@ public class BookingService {
         }
         booking.cancel(caller.id(), reason == null || reason.isBlank() ? null : reason.strip(), now);
         return BookingResponse.of(bookings.saveAndFlush(booking), zone);
+    }
+
+    /**
+     * The caller's bookings. By default only upcoming or running ones, soonest first;
+     * with {@code includePast} the whole history, most recent first.
+     */
+    @Transactional(readOnly = true)
+    public PageResponse<BookingResponse> listMine(AuthUser caller, boolean includePast, BookingStatus status,
+            int page, int size) {
+        List<Specification<Booking>> filters = new ArrayList<>();
+        filters.add(BookingSpecs.ownedBy(caller.id()));
+        if (status != null) {
+            filters.add(BookingSpecs.withStatus(status));
+        }
+        if (!includePast) {
+            filters.add(BookingSpecs.endsAfter(clock.instant()));
+        }
+        Sort sort = includePast ? Sort.by("startTime").descending() : Sort.by("startTime").ascending();
+        return PageResponse.of(bookings.findAll(Specification.allOf(filters), PageRequest.of(page, size, sort)),
+                b -> BookingResponse.of(b, zone));
+    }
+
+    /** Admin search; every filter is optional, {@code from}/{@code to} are business-zone days, inclusive. */
+    @Transactional(readOnly = true)
+    public PageResponse<BookingResponse> search(Long roomId, Long userId, BookingStatus status, LocalDate from,
+            LocalDate to, int page, int size) {
+        if (from != null && to != null && to.isBefore(from)) {
+            throw new InvalidRequestException("'to' must not be before 'from'");
+        }
+        List<Specification<Booking>> filters = new ArrayList<>();
+        if (roomId != null) {
+            filters.add(BookingSpecs.inRoom(roomId));
+        }
+        if (userId != null) {
+            filters.add(BookingSpecs.ownedBy(userId));
+        }
+        if (status != null) {
+            filters.add(BookingSpecs.withStatus(status));
+        }
+        if (from != null) {
+            filters.add(BookingSpecs.endsAfter(from.atStartOfDay(zone).toInstant()));
+        }
+        if (to != null) {
+            filters.add(BookingSpecs.startsBefore(to.plusDays(1).atStartOfDay(zone).toInstant()));
+        }
+        Pageable pageable = PageRequest.of(page, size, Sort.by("startTime", "id"));
+        return PageResponse.of(bookings.findAll(Specification.allOf(filters), pageable),
+                b -> BookingResponse.of(b, zone));
     }
 
     private Room findRoom(Long roomId) {

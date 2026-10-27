@@ -207,8 +207,8 @@ Base path: `/api/v1`. Chi tiết đầy đủ trên Swagger UI.
 | POST | `/bookings` | User | Done |
 | GET/PUT | `/bookings/{id}` | Owner/Admin (PUT cần gửi `version` vừa đọc) | Done |
 | POST | `/bookings/{id}/cancel` | Owner/Admin | Done |
-| GET | `/bookings/me` | User | TODO |
-| GET | `/bookings` | Admin | TODO |
+| GET | `/bookings/me?includePast=&status=&page=&size=` | User (mặc định: sắp tới + đang diễn ra) | Done |
+| GET | `/bookings?roomId=&userId=&status=&from=&to=&page=&size=` | Admin | Done |
 | CRUD | `/users` | Admin | TODO |
 
 ---

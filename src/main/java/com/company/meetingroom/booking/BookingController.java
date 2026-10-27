@@ -1,8 +1,11 @@
 package com.company.meetingroom.booking;
 
 import java.net.URI;
+import java.time.LocalDate;
 
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -11,6 +14,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
@@ -19,15 +23,20 @@ import com.company.meetingroom.booking.dto.BookingRequest;
 import com.company.meetingroom.booking.dto.BookingResponse;
 import com.company.meetingroom.booking.dto.BookingUpdateRequest;
 import com.company.meetingroom.booking.dto.CancelBookingRequest;
+import com.company.meetingroom.common.web.PageResponse;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 
 @RestController
 @RequestMapping("/api/v1/bookings")
 @Tag(name = "Bookings")
 public class BookingController {
+
+    private static final int MAX_PAGE_SIZE = 100;
 
     private final BookingService bookingService;
 
@@ -43,6 +52,31 @@ public class BookingController {
         URI location = ServletUriComponentsBuilder.fromCurrentRequest()
                 .path("/{id}").buildAndExpand(created.id()).toUri();
         return ResponseEntity.created(location).body(created);
+    }
+
+    @GetMapping("/me")
+    @Operation(summary = "My bookings: upcoming and running, soonest first (default CONFIRMED only); "
+            + "includePast=true for the full history, most recent first")
+    public PageResponse<BookingResponse> mine(@AuthenticationPrincipal Jwt jwt,
+            @RequestParam(defaultValue = "false") boolean includePast,
+            @RequestParam(defaultValue = "CONFIRMED") BookingStatus status,
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "20") @Min(1) @Max(MAX_PAGE_SIZE) int size) {
+        return bookingService.listMine(AuthUser.from(jwt), includePast, status, page, size);
+    }
+
+    @GetMapping
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Search all bookings (admin); filters are optional, from/to are days in the business zone")
+    public PageResponse<BookingResponse> search(
+            @RequestParam(required = false) Long roomId,
+            @RequestParam(required = false) Long userId,
+            @RequestParam(required = false) BookingStatus status,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "20") @Min(1) @Max(MAX_PAGE_SIZE) int size) {
+        return bookingService.search(roomId, userId, status, from, to, page, size);
     }
 
     @GetMapping("/{id}")
