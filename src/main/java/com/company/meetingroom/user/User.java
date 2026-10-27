@@ -71,6 +71,15 @@ public class User {
         this.role = role;
     }
 
+    public void rename(String fullName) {
+        this.fullName = fullName;
+    }
+
+    /** Takes an already-encoded hash; hashing stays with the PasswordEncoder bean. */
+    public void changePassword(String passwordHash) {
+        this.passwordHash = passwordHash;
+    }
+
     public void deactivate() {
         this.active = false;
     }
