@@ -3,8 +3,8 @@
 Backend REST API cho hệ thống đặt phòng họp nội bộ (~10 phòng, ~200 nhân viên).
 Mục tiêu chính: **loại bỏ hoàn toàn việc trùng lịch**, kể cả khi nhiều người đặt cùng lúc.
 
-> Trạng thái: nền tảng (schema, bảo mật, xử lý lỗi, Docker, test hạ tầng) đã xong.
-> Các mục đánh dấu **TODO** đang được phát triển.
+Chức năng: quản lý phòng, đặt / sửa / hủy phòng, xem lịch theo phòng và theo ngày, tìm phòng trống,
+quản lý tài khoản. Hai vai trò: người dùng thường (`USER`) và quản trị (`ADMIN`).
 
 ---
 
@@ -21,6 +21,9 @@ docker compose up --build
 | Swagger UI | http://localhost:8080/swagger-ui.html |
 | OpenAPI JSON | http://localhost:8080/v3/api-docs |
 | Health | http://localhost:8080/actuator/health |
+
+> Cổng 8080 đã bị chương trình khác dùng? Copy `.env.example` thành `.env`, đổi `APP_PORT=8081`,
+> chạy lại `docker compose up --build`, rồi thay `8080` bằng `8081` trong các URL trên.
 
 Tài khoản demo (profile `demo`, bật mặc định trong compose):
 
@@ -46,14 +49,16 @@ curl -s http://localhost:8080/api/v1/auth/me -H "Authorization: Bearer <accessTo
 
 ```bash
 docker compose up -d db          # chỉ chạy PostgreSQL
-mvn spring-boot:run -Dspring-boot.run.profiles=demo
+./mvnw spring-boot:run -Dspring-boot.run.profiles=demo
 ```
 
 ### Chạy test
 
 ```bash
-mvn verify        # cần Docker đang chạy: integration test dùng Testcontainers (PostgreSQL thật)
+./mvnw verify     # cần Docker đang chạy: integration test dùng Testcontainers (PostgreSQL thật)
 ```
+
+Không cần cài Maven: `mvnw` / `mvnw.cmd` tự tải đúng phiên bản. Chỉ cần JDK 21.
 
 > Docker Engine 29+ yêu cầu Docker API ≥ 1.44; `src/test/resources/docker-java.properties` cố định `api.version=1.44` để Testcontainers kết nối được.
 
@@ -92,7 +97,7 @@ Mỗi lần chạy tạo phòng và user riêng, cuối cùng hủy booking và 
 |---|---|---|
 | R1 | Hai booking `CONFIRMED` cùng phòng không được giao nhau | Khoảng nửa mở `[start, end)`: 9:00–10:00 và 10:00–11:00 **không** trùng |
 | R2 | Không đặt trong quá khứ | |
-| R3 | `end > start` | Có CHECK constraint ở DB |
+| R3 | `end > start` | Có thêm CHECK constraint ở DB |
 | R4 | Thời lượng 15 phút – 8 giờ | `app.booking.min-duration`, `max-duration` |
 | R5 | Mốc giờ là bội số 15 phút | `app.booking.slot-minutes` |
 | R6 | Chỉ trong giờ làm việc 07:00–20:00, thứ 2 – thứ 6 | Tính theo `Asia/Ho_Chi_Minh` |
@@ -103,14 +108,28 @@ Mỗi lần chạy tạo phòng và user riêng, cuối cùng hủy booking và 
 | R11 | Phòng ngừng hoạt động thì không nhận booking mới | Không xóa cứng phòng |
 | R12 | Lưu thời gian dạng `timestamptz` (UTC); API dùng ISO-8601 có offset | |
 
-Không có tự đăng ký: hệ thống nội bộ, ADMIN tạo tài khoản; admin đầu tiên được tạo từ cấu hình khi khởi động.
-
 Các quy tắc R4–R7 cấu hình được trong `application.yml` (`app.booking.*`).
+Vi phạm R2–R11 trả 422, trong body có `"rule": "R6"` để client biết chính xác luật nào bị vi phạm.
+
+### Tài khoản
+
+| # | Quy tắc |
+|---|---|
+| U1 | Không có tự đăng ký (hệ thống nội bộ): ADMIN tạo tài khoản kèm mật khẩu ban đầu, nhân viên tự đổi sau |
+| U2 | Admin đầu tiên được tạo từ cấu hình khi khởi động (`ADMIN_EMAIL`, `ADMIN_PASSWORD` trong `.env`) |
+| U3 | Email là tên đăng nhập: lưu chữ thường, duy nhất, không sửa được |
+| U4 | Khóa tài khoản thay vì xóa (booking cũ vẫn tham chiếu); tài khoản bị khóa không đăng nhập được |
+| U5 | Admin không tự hạ quyền hay tự khóa mình; hệ thống luôn còn ít nhất một admin đang hoạt động |
+
+### Ai thấy gì trên lịch
+Mọi nhân viên thấy giờ, tiêu đề và **người đặt** (để biết hỏi ai khi cần phòng). **Mô tả** cuộc họp
+chỉ chủ booking và ADMIN thấy.
 
 ### Ngoài phạm vi (có chủ đích)
 - SSO/LDAP, đồng bộ Google Calendar/Outlook
 - Gửi email/Slack thông báo
-- Booking lặp lại (recurring) — **TODO nếu kịp**
+- Booking lặp lại (recurring): nhiều trường hợp biên (một buổi bị trùng, sửa một buổi hay cả chuỗi),
+  cần thống nhất nghiệp vụ trước khi làm
 
 ---
 
@@ -120,12 +139,18 @@ Các quy tắc R4–R7 cấu hình được trong `application.yml` (`app.bookin
 
 ```
 com.company.meetingroom
-├── common/        error (ProblemDetail, exception), config (OpenAPI), time (Clock, ZoneId)
-├── auth/          SecurityConfig, JWT, login, AuthUser
-├── user/          User, Role, bootstrap tài khoản
-├── room/          Room, Equipment
-└── booking/       Booking, BookingProperties (luật nghiệp vụ cấu hình được)
+├── common/   error   ApiException + 400/404/409/422, GlobalExceptionHandler (RFC 7807), PgErrors (SQLSTATE)
+│             web     PageResponse      config  OpenAPI      time  Clock, ZoneId
+├── auth/     SecurityConfig, TokenService (JWT), AuthController (login, me), AuthUser
+├── user/     User, UserService, UserController (quản lý tài khoản), AccountBootstrap
+├── room/     Room, Equipment, RoomService, RoomController (CRUD phòng)
+└── booking/  Booking, BookingPolicy (R2–R11), BookingService, BookingController (đặt / sửa / hủy / danh sách)
+              ScheduleService, ScheduleController (phòng trống, lịch phòng, lịch ngày)
 ```
+
+Trong mỗi module: `Controller` (HTTP, quyền, validate input) → `Service` (transaction, nghiệp vụ)
+→ `Repository` (Spring Data). DTO là `record`, entity không bao giờ ra khỏi tầng service.
+Tìm phòng trống và xem lịch nằm trong `booking/` vì chúng đọc booking; `room/` không phụ thuộc `booking/` ở tầng Java.
 
 Lý do:
 - 200 người dùng, 10 phòng: một service + một database là đủ và đơn giản để vận hành.
@@ -173,15 +198,55 @@ CONSTRAINT no_overlapping_bookings EXCLUDE USING gist (
 nhưng **tính đúng đắn do DB đảm bảo**: lỗi SQLSTATE `23P01` được chuyển thành HTTP 409.
 `NoOverlapConstraintIT` chứng minh: 20 luồng đặt cùng slot, đúng 1 thành công.
 
+`BookingApiIT` kiểm tra thêm ở tầng service: 10 request đồng thời qua `BookingService`, đúng 1 booking được tạo,
+9 request còn lại nhận 409 (không phải 500).
+
+### Quy tắc nghiệp vụ tập trung trong `BookingPolicy`
+Tạo và sửa booking gọi cùng một `BookingPolicy.check(...)`, nên R10 ("sửa vẫn phải thỏa R1–R8") đúng theo cấu trúc,
+không phụ thuộc việc nhớ copy kiểm tra. Policy dừng ở lỗi đầu tiên, trả 422 với `type` riêng
+(`booking-in-past`, `outside-working-hours`...) và số hiệu luật. Policy nhận `Clock` nên được unit test
+(`BookingPolicyTest`, 21 case) mà không cần database hay chờ thời gian thật.
+
+### Sửa đồng thời: optimistic locking có kiểm tra phía client
+`PUT /bookings/{id}` bắt buộc gửi `version` vừa đọc. Khác `version` hiện tại → 409 `concurrent-modification`.
+Nhờ vậy cả trường hợp "hai người mở cùng booking, người sau ghi đè người trước" (cách nhau vài phút)
+cũng bị chặn, không chỉ hai request trùng đúng thời điểm (trường hợp đó do `@Version` của JPA chặn).
+
 ### Thời gian: `timestamptz` + khoảng nửa mở
 Lưu UTC, tránh lỗi múi giờ; quy tắc "giờ làm việc" và "một ngày" tính theo múi giờ công ty (`app.zone-id`).
+Input bắt buộc có offset (`2030-01-07T09:00:00+07:00`), thiếu offset → 400, để không phải đoán múi giờ.
+Output trả theo múi giờ công ty (`+07:00`), client hiển thị luôn được.
+"Một ngày" trên lịch là 00:00–24:00 giờ Việt Nam: booking kết thúc đúng 00:00 chỉ thuộc ngày hôm trước.
 
-### Soft cancel
+### Tìm phòng trống bằng một truy vấn
+Phòng đang hoạt động, đủ chỗ, `NOT EXISTS` booking giao với khoảng cần tìm, tất cả trong một câu SQL,
+thay vì tải hết booking về rồi lọc. Kết quả xếp **phòng nhỏ nhất vừa đủ** lên đầu
+để nhóm 3 người không được gợi ý hội trường 30 chỗ trước. Lọc thiết bị chạy trong bộ nhớ vì chỉ có ~10 phòng.
+Tìm phòng không áp R6 (giờ làm việc): đó là việc của bước đặt phòng, nơi trả thông báo lỗi chính xác.
+
+### 400 hay 422?
+400 khi request sai định dạng hoặc tham số tìm kiếm vô nghĩa (thiếu offset, `to` trước `from`, khoảng > 31 ngày).
+422 khi request đúng định dạng nhưng vi phạm luật đặt phòng. Vì vậy `end ≤ start` khi **đặt phòng** là 422 (R3),
+còn khi **tìm phòng trống** là 400.
+
+### Danh sách: phân trang, thứ tự cố định
+`/bookings/me`, `/bookings`, `/users` trả `PageResponse` (`content`, `page`, `size`, `totalElements`, `totalPages`),
+tối đa 100 dòng mỗi trang. Thứ tự sắp xếp cố định (theo giờ bắt đầu / theo tên): cho client tự chọn trường sort
+thì gõ sai tên trường sẽ thành lỗi 500, và có thể sort theo cột không có index.
+
+### Soft cancel, soft delete
 Giữ lịch sử ai hủy, khi nào, vì sao; partial constraint giúp slot được giải phóng ngay.
+Phòng và tài khoản cũng chỉ bị khóa (`active = false`), không xóa, vì booking cũ còn tham chiếu tới.
 
 ### JWT stateless, roles trong token
 Token sống 8 giờ (một ngày làm việc). Đánh đổi: vô hiệu hóa user không thu hồi token đang có
-cho tới khi hết hạn. Cải tiến khi lên production: token ngắn hạn + refresh token, hoặc kiểm tra `active` mỗi request.
+cho tới khi hết hạn; đổi role cũng chỉ có hiệu lực từ lần đăng nhập sau.
+Cải tiến khi lên production: token ngắn hạn + refresh token, hoặc kiểm tra `active` mỗi request.
+
+### Giới hạn đã biết
+- Kiểm tra "còn ít nhất một admin" (U5) không khóa dòng: hai admin hạ quyền nhau đúng cùng lúc có thể không còn admin.
+  Chấp nhận vì hiếm; khắc phục bằng `SELECT ... FOR UPDATE` trên các admin, hoặc tạo lại admin qua cấu hình bootstrap.
+- Khóa tài khoản không tự hủy các booking sắp tới của người đó; ADMIN tìm (`GET /bookings?userId=`) và hủy nếu cần.
 
 ### Schema do Flyway quản lý
 `ddl-auto=validate`: Hibernate chỉ kiểm tra entity khớp schema. Dữ liệu demo là repeatable migration
@@ -230,10 +295,23 @@ Base path: `/api/v1`. Chi tiết đầy đủ trên Swagger UI.
 
 ## 8. Kiểm thử
 
-| Test | Nội dung |
-|---|---|
-| `NoOverlapConstraintIT` | Ràng buộc DB: chồng lấn bị chặn, nối tiếp hợp lệ, hủy giải phóng slot, **20 request đồng thời chỉ 1 thành công** |
-| `AuthFlowIT` | Đăng nhập, dùng token, lỗi 400/401 đúng định dạng RFC 7807 |
+97 test tự động (`./mvnw verify`): 27 unit test và 70 integration test trên PostgreSQL thật (Testcontainers).
+
+| Test | Số case | Nội dung |
+|---|---|---|
+| `BookingPolicyTest` | 21 | R2–R8, R11 với `Clock` cố định: biên đúng lúc này, đúng 90 ngày, 07:00 / 20:00, giờ UTC và giờ VN |
+| `RoomServiceTest` | 2 | Tạo phòng trùng tên đồng thời (unique violation) → 409, lỗi DB khác không bị che |
+| `UserServiceTest` | 4 | Không hạ quyền / khóa admin cuối cùng; admin không tự khóa mình |
+| `NoOverlapConstraintIT` | 7 | Ràng buộc DB: chồng lấn bị chặn, nối tiếp hợp lệ, hủy giải phóng slot, **20 luồng đồng thời chỉ 1 thành công** |
+| `BookingApiIT` | 18 | Tạo / sửa / hủy qua HTTP: 409 kèm người giữ slot, 422 kèm số hiệu luật, quyền chủ / admin, `version` cũ → 409, **10 request đồng thời → 1 booking** |
+| `BookingListIT` | 6 | Booking của tôi (sắp tới / lịch sử / trạng thái), tìm kiếm của admin, phân trang |
+| `AvailabilityIT` | 7 | Phòng trống: chồng lấn một phần, nối tiếp, booking đã hủy, sức chứa, thiết bị, thứ tự |
+| `ScheduleIT` | 6 | Lịch phòng, lịch ngày, ranh giới nửa đêm theo giờ VN, ẩn mô tả với người khác |
+| `RoomApiIT` | 11 | CRUD phòng, quyền admin, trùng tên, khóa phòng |
+| `UserApiIT` | 10 | Tạo tài khoản rồi đăng nhập được, trùng email, khóa / mở khóa, đổi và đặt lại mật khẩu |
+| `AuthFlowIT` | 5 | Đăng nhập, dùng token, lỗi 400/401 đúng định dạng RFC 7807 |
+
+Ngoài ra, collection Postman (`postman/`, mục 1) chạy 70 request, 157 assertion trên app thật dựng bằng `docker compose`.
 
 ---
 
@@ -243,3 +321,5 @@ Base path: `/api/v1`. Chi tiết đầy đủ trên Swagger UI.
 - Check-in và tự giải phóng phòng nếu không check-in sau 10–15 phút
 - Audit log, rate limiting, metrics (Micrometer + Prometheus)
 - Refresh token / thu hồi token
+- Booking lặp lại hằng tuần
+- Khi khóa tài khoản, đề xuất hủy hàng loạt các booking sắp tới của người đó
