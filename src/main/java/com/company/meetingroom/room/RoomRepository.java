@@ -2,6 +2,7 @@ package com.company.meetingroom.room;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -11,6 +12,8 @@ import org.springframework.data.repository.query.Param;
 public interface RoomRepository extends JpaRepository<Room, Long> {
 
     boolean existsByNameIgnoreCase(String name);
+
+    Optional<Room> findByName(String name);
 
     boolean existsByNameIgnoreCaseAndIdNot(String name, Long id);
 
