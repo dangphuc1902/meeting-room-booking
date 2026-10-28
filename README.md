@@ -1,5 +1,7 @@
 # Meeting Room Booking API
 
+[![CI](https://github.com/dangphuc1902/meeting-room-booking/actions/workflows/ci.yml/badge.svg)](https://github.com/dangphuc1902/meeting-room-booking/actions/workflows/ci.yml)
+
 Backend REST API cho hệ thống đặt phòng họp nội bộ (~10 phòng, ~200 nhân viên).
 Mục tiêu chính: **loại bỏ hoàn toàn việc trùng lịch**, kể cả khi nhiều người đặt cùng lúc.
 
@@ -32,7 +34,9 @@ Tài khoản demo (profile `demo`, bật mặc định trong compose):
 | ADMIN | `admin@company.local` | `Admin@123` |
 | USER | `user@company.local` | `User@123` |
 
-Profile `demo` còn seed sẵn 10 phòng họp. Muốn chạy với database trống: `SPRING_PROFILES_ACTIVE=default docker compose up`.
+Profile `demo` còn seed sẵn 10 phòng họp và 9 cuộc họp trong 3 ngày làm việc kế tiếp
+(xem ngay bằng `GET /api/v1/schedule?date=<ngày làm việc kế tiếp>`). Booking demo chỉ được tạo khi bảng booking còn trống.
+Muốn chạy với database trống: đặt `SPRING_PROFILES_ACTIVE=default` trong `.env`.
 Mọi cấu hình đều có giá trị mặc định; xem `.env.example` để tùy chỉnh (copy thành `.env`).
 
 ```bash
@@ -269,39 +273,42 @@ Mọi lỗi, kể cả 401/403 phát sinh trong security filter, đều trả `a
 
 Base path: `/api/v1`. Chi tiết đầy đủ trên Swagger UI.
 
-| Method | Path | Quyền | Trạng thái |
-|---|---|---|---|
-| POST | `/auth/login` | Public | Done |
-| GET | `/auth/me` | User | Done |
-| GET | `/rooms?includeInactive=` | User (`includeInactive` chỉ có tác dụng với Admin) | Done |
-| GET | `/rooms/{id}` | User | Done |
-| POST/PUT | `/rooms`, `/rooms/{id}` | Admin | Done |
-| PATCH | `/rooms/{id}/status` | Admin | Done |
-| GET | `/rooms/availability?start=&end=&minCapacity=&equipment=` | User (phòng nhỏ nhất vừa đủ đứng đầu; `+` của offset phải gửi là `%2B`) | Done |
-| GET | `/rooms/{id}/schedule?from=&to=` | User (mặc định 7 ngày từ hôm nay, tối đa 31) | Done |
-| GET | `/schedule?date=` | User (mọi phòng đang hoạt động trong ngày) | Done |
-| POST | `/bookings` | User | Done |
-| GET/PUT | `/bookings/{id}` | Owner/Admin (PUT cần gửi `version` vừa đọc) | Done |
-| POST | `/bookings/{id}/cancel` | Owner/Admin | Done |
-| GET | `/bookings/me?includePast=&status=&page=&size=` | User (mặc định: sắp tới + đang diễn ra) | Done |
-| GET | `/bookings?roomId=&userId=&status=&from=&to=&page=&size=` | Admin | Done |
-| GET/POST | `/users?q=&role=&active=`, `/users` | Admin | Done |
-| GET/PUT | `/users/{id}` (tên, role) | Admin | Done |
-| PATCH | `/users/{id}/status` (khóa / mở khóa, không xóa) | Admin | Done |
-| PUT | `/users/{id}/password` (đặt lại mật khẩu) | Admin | Done |
-| PUT | `/users/me/password` (tự đổi mật khẩu) | User | Done |
+| Method | Path | Quyền |
+|---|---|---|
+| POST | `/auth/login` | Public |
+| GET | `/auth/me` | User |
+| GET | `/rooms?includeInactive=` | User (`includeInactive` chỉ có tác dụng với Admin) |
+| GET | `/rooms/{id}` | User |
+| POST/PUT | `/rooms`, `/rooms/{id}` | Admin |
+| PATCH | `/rooms/{id}/status` | Admin |
+| GET | `/rooms/availability?start=&end=&minCapacity=&equipment=` | User (phòng nhỏ nhất vừa đủ đứng đầu; `+` của offset phải gửi là `%2B`) |
+| GET | `/rooms/{id}/schedule?from=&to=` | User (mặc định 7 ngày từ hôm nay, tối đa 31) |
+| GET | `/schedule?date=` | User (mọi phòng đang hoạt động trong ngày) |
+| POST | `/bookings` | User |
+| GET/PUT | `/bookings/{id}` | Owner/Admin (PUT cần gửi `version` vừa đọc) |
+| POST | `/bookings/{id}/cancel` | Owner/Admin |
+| GET | `/bookings/me?includePast=&status=&page=&size=` | User (mặc định: sắp tới + đang diễn ra) |
+| GET | `/bookings?roomId=&userId=&status=&from=&to=&page=&size=` | Admin |
+| GET/POST | `/users?q=&role=&active=`, `/users` | Admin |
+| GET/PUT | `/users/{id}` (tên, role) | Admin |
+| PATCH | `/users/{id}/status` (khóa / mở khóa, không xóa) | Admin |
+| PUT | `/users/{id}/password` (đặt lại mật khẩu) | Admin |
+| PUT | `/users/me/password` (tự đổi mật khẩu) | User |
 
 ---
 
 ## 8. Kiểm thử
 
-97 test tự động (`./mvnw verify`): 27 unit test và 70 integration test trên PostgreSQL thật (Testcontainers).
+100 test tự động (`./mvnw verify`): 30 unit test và 70 integration test trên PostgreSQL thật (Testcontainers).
+GitHub Actions (`.github/workflows/ci.yml`) chạy toàn bộ mỗi lần push, rồi dựng `docker compose up --build`
+và chạy collection Postman trên app thật.
 
 | Test | Số case | Nội dung |
 |---|---|---|
 | `BookingPolicyTest` | 21 | R2–R8, R11 với `Clock` cố định: biên đúng lúc này, đúng 90 ngày, 07:00 / 20:00, giờ UTC và giờ VN |
 | `RoomServiceTest` | 2 | Tạo phòng trùng tên đồng thời (unique violation) → 409, lỗi DB khác không bị che |
 | `UserServiceTest` | 4 | Không hạ quyền / khóa admin cuối cùng; admin không tự khóa mình |
+| `DemoBookingSeederTest` | 3 | Booking demo luôn thỏa `BookingPolicy` và không trùng nhau (sức chứa đọc từ SQL seed phòng) |
 | `NoOverlapConstraintIT` | 7 | Ràng buộc DB: chồng lấn bị chặn, nối tiếp hợp lệ, hủy giải phóng slot, **20 luồng đồng thời chỉ 1 thành công** |
 | `BookingApiIT` | 18 | Tạo / sửa / hủy qua HTTP: 409 kèm người giữ slot, 422 kèm số hiệu luật, quyền chủ / admin, `version` cũ → 409, **10 request đồng thời → 1 booking** |
 | `BookingListIT` | 6 | Booking của tôi (sắp tới / lịch sử / trạng thái), tìm kiếm của admin, phân trang |
