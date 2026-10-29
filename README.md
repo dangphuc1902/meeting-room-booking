@@ -67,6 +67,8 @@ docker compose up -d db          # chỉ chạy PostgreSQL
 
 Không cần cài Maven: `mvnw` / `mvnw.cmd` tự tải đúng phiên bản. Chỉ cần JDK 21.
 
+Vận hành (backup / restore, xoay secret, xem log, xử lý sự cố): [`docs/RUNBOOK.md`](docs/RUNBOOK.md).
+
 > Docker Engine 29+ yêu cầu Docker API ≥ 1.44; `src/test/resources/docker-java.properties` cố định `api.version=1.44` để Testcontainers kết nối được.
 
 ### Kiểm thử toàn bộ API bằng Postman
@@ -189,6 +191,7 @@ CONSTRAINT no_overlapping_bookings EXCLUDE USING gist (
 - Index GiST của constraint dùng cho việc kiểm tra trùng khi ghi. Các truy vấn đọc hiện so sánh cột `start_time`/`end_time`
   trực tiếp nên chỉ tận dụng được phần `room_id` của index. Với ~10 phòng điều này không đáng kể; khi dữ liệu lớn
   sẽ chuyển sang so sánh `tstzrange(...) && tstzrange(:from, :to)` để dùng trọn index.
+- Tên phòng duy nhất không phân biệt hoa / thường: unique index trên `lower(name)` (`V2__room_name_unique_ci.sql`).
 
 ---
 
@@ -303,7 +306,7 @@ Base path: `/api/v1`. Chi tiết đầy đủ trên Swagger UI.
 
 ## 8. Kiểm thử
 
-100 test tự động (`./mvnw verify`): 30 unit test và 70 integration test trên PostgreSQL thật (Testcontainers).
+103 test tự động (`./mvnw verify`): 30 unit test và 73 integration test trên PostgreSQL thật (Testcontainers).
 GitHub Actions (`.github/workflows/ci.yml`) chạy toàn bộ mỗi lần push, rồi dựng `docker compose up --build`
 và chạy collection Postman trên app thật.
 
@@ -314,11 +317,13 @@ và chạy collection Postman trên app thật.
 | `UserServiceTest` | 4 | Không hạ quyền / khóa admin cuối cùng; admin không tự khóa mình |
 | `DemoBookingSeederTest` | 3 | Booking demo luôn thỏa `BookingPolicy` và không trùng nhau (sức chứa đọc từ SQL seed phòng) |
 | `NoOverlapConstraintIT` | 7 | Ràng buộc DB: chồng lấn bị chặn, nối tiếp hợp lệ, hủy giải phóng slot, **20 luồng đồng thời chỉ 1 thành công** |
-| `BookingApiIT` | 18 | Tạo / sửa / hủy qua HTTP: 409 kèm người giữ slot, 422 kèm số hiệu luật, quyền chủ / admin, `version` cũ → 409, **10 request đồng thời → 1 booking** |
+| `BookingApiIT` | 19 | Tạo / sửa / hủy qua HTTP: 409 kèm người giữ slot, 422 kèm số hiệu luật, quyền chủ / admin, `version` cũ → 409, **10 request đồng thời → 1 booking**, tài khoản bị khóa dùng token cũ → 403 |
 | `BookingListIT` | 6 | Booking của tôi (sắp tới / lịch sử / trạng thái), tìm kiếm của admin, phân trang |
 | `AvailabilityIT` | 7 | Phòng trống: chồng lấn một phần, nối tiếp, booking đã hủy, sức chứa, thiết bị, thứ tự |
 | `ScheduleIT` | 6 | Lịch phòng, lịch ngày, ranh giới nửa đêm theo giờ VN, ẩn mô tả với người khác |
 | `RoomApiIT` | 11 | CRUD phòng, quyền admin, trùng tên, khóa phòng |
+| `RoomNameConstraintIT` | 1 | DB chặn tên phòng chỉ khác hoa / thường (bỏ qua kiểm tra ở service) |
+| `AdminLockIT` | 1 | Kiểm tra "còn ≥ 1 admin" thật sự khóa dòng: transaction khác không lock được cho tới khi commit |
 | `UserApiIT` | 10 | Tạo tài khoản rồi đăng nhập được, trùng email, khóa / mở khóa, đổi và đặt lại mật khẩu |
 | `AuthFlowIT` | 5 | Đăng nhập, dùng token, lỗi 400/401 đúng định dạng RFC 7807 |
 

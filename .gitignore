@@ -30,3 +30,4 @@ logs/
 
 # Local AI-tool settings
 .claude/
+backups/
