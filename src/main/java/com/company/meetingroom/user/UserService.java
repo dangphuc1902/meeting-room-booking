@@ -140,8 +140,12 @@ public class UserService {
         }
     }
 
+    /**
+     * Locks the active admin rows so two admins demoting or deactivating each other at the same
+     * moment cannot both pass the check: the second one waits and then sees only one admin left.
+     */
     private void requireAnotherActiveAdmin(User admin) {
-        long activeAdmins = users.countByRoleAndActiveTrue(Role.ADMIN);
+        int activeAdmins = users.lockActiveByRole(Role.ADMIN).size();
         if (admin.isActive() && activeAdmins <= 1) {
             throw new BusinessRuleException("last-admin", "The system must keep at least one active admin");
         }

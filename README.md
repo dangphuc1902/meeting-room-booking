@@ -126,7 +126,7 @@ Vi phạm R2–R11 trả 422, trong body có `"rule": "R6"` để client biết 
 | U2 | Admin đầu tiên được tạo từ cấu hình khi khởi động (`ADMIN_EMAIL`, `ADMIN_PASSWORD` trong `.env`) |
 | U3 | Email là tên đăng nhập: lưu chữ thường, duy nhất, không sửa được |
 | U4 | Khóa tài khoản thay vì xóa (booking cũ vẫn tham chiếu); tài khoản bị khóa không đăng nhập được |
-| U5 | Admin không tự hạ quyền hay tự khóa mình; hệ thống luôn còn ít nhất một admin đang hoạt động |
+| U5 | Admin không tự hạ quyền hay tự khóa mình; hệ thống luôn còn ít nhất một admin đang hoạt động (kiểm tra bằng `SELECT ... FOR UPDATE` trên các admin đang hoạt động, nên hai admin hạ quyền nhau cùng lúc vẫn còn lại một) |
 
 ### Ai thấy gì trên lịch
 Mọi nhân viên thấy giờ, tiêu đề và **người đặt** (để biết hỏi ai khi cần phòng). **Mô tả** cuộc họp
@@ -254,8 +254,6 @@ token cũ vẫn hợp lệ tới khi hết hạn, nhưng tài khoản bị khóa
 Cải tiến khi lên production: token ngắn hạn + refresh token, hoặc kiểm tra `active` mỗi request.
 
 ### Giới hạn đã biết
-- Kiểm tra "còn ít nhất một admin" (U5) không khóa dòng: hai admin hạ quyền nhau đúng cùng lúc có thể không còn admin.
-  Chấp nhận vì hiếm; khắc phục bằng `SELECT ... FOR UPDATE` trên các admin đang hoạt động.
 - Khóa tài khoản không tự hủy các booking sắp tới của người đó; ADMIN tìm (`GET /bookings?userId=`) và hủy nếu cần.
 
 ### Schema do Flyway quản lý

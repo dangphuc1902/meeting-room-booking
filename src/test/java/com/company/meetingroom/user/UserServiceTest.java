@@ -6,7 +6,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.util.List;
 import java.util.Optional;
+import java.util.stream.IntStream;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -39,7 +41,7 @@ class UserServiceTest {
 
     @Test
     void lastActiveAdmin_cannotBeDemoted() {
-        when(users.countByRoleAndActiveTrue(Role.ADMIN)).thenReturn(1L);
+        when(users.lockActiveByRole(Role.ADMIN)).thenReturn(activeAdmins(1));
 
         assertThatThrownBy(() -> service.update(caller, 2L, new UpdateUserRequest("Other", Role.USER)))
                 .satisfies(ex -> assertCode(ex, "last-admin"));
@@ -47,7 +49,7 @@ class UserServiceTest {
 
     @Test
     void lastActiveAdmin_cannotBeDeactivated() {
-        when(users.countByRoleAndActiveTrue(Role.ADMIN)).thenReturn(1L);
+        when(users.lockActiveByRole(Role.ADMIN)).thenReturn(activeAdmins(1));
 
         assertThatThrownBy(() -> service.changeStatus(caller, 2L, false))
                 .satisfies(ex -> assertCode(ex, "last-admin"));
@@ -55,14 +57,14 @@ class UserServiceTest {
 
     @Test
     void adminCanBeDemoted_whenAnotherActiveAdminRemains() {
-        when(users.countByRoleAndActiveTrue(Role.ADMIN)).thenReturn(2L);
+        when(users.lockActiveByRole(Role.ADMIN)).thenReturn(activeAdmins(2));
 
         assertThat(service.update(caller, 2L, new UpdateUserRequest("Other", Role.USER)).role()).isEqualTo(Role.USER);
     }
 
     @Test
     void adminCannotDemoteOrDeactivateThemselves_evenWithOtherAdmins() {
-        when(users.countByRoleAndActiveTrue(Role.ADMIN)).thenReturn(5L);
+        when(users.lockActiveByRole(Role.ADMIN)).thenReturn(activeAdmins(5));
 
         assertThatThrownBy(() -> service.update(caller, 1L, new UpdateUserRequest("Boss", Role.USER)))
                 .satisfies(ex -> assertCode(ex, "self-lockout"));
@@ -73,6 +75,12 @@ class UserServiceTest {
     private static void assertCode(Throwable ex, String code) {
         assertThat(ex).isInstanceOf(BusinessRuleException.class);
         assertThat(((BusinessRuleException) ex).errorCode()).isEqualTo(code);
+    }
+
+    private static List<User> activeAdmins(int count) {
+        return IntStream.rangeClosed(1, count)
+                .mapToObj(i -> withId(new User("admin" + i + "@test.local", "x", "Admin " + i, Role.ADMIN), i))
+                .toList();
     }
 
     private static User withId(User user, long id) {
