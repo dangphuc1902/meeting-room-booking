@@ -208,6 +208,10 @@ CONSTRAINT no_overlapping_bookings EXCLUDE USING gist (
 
 Ứng dụng vẫn kiểm tra trước để trả thông báo thân thiện ("phòng đã được X đặt 9:00–10:00"),
 nhưng **tính đúng đắn do DB đảm bảo**: lỗi SQLSTATE `23P01` được chuyển thành HTTP 409.
+Khi nhiều request cùng slot chèn đồng thời, PostgreSQL có thể báo `40P01 deadlock detected` thay vì `23P01`:
+mỗi INSERT ghi entry vào index GiST rồi mới chờ transaction đang xung đột, nên các bên có thể chờ lẫn nhau,
+và PostgreSQL hủy một bên. Transaction đặt phòng chỉ chờ lock của bước kiểm tra constraint, nên `40P01` ở đây cũng có nghĩa
+"người khác vừa giữ slot" và được trả cùng 409, không thành 500.
 `NoOverlapConstraintIT` chứng minh: 20 luồng đặt cùng slot, đúng 1 thành công.
 
 `BookingApiIT` kiểm tra thêm ở tầng service: 10 request đồng thời qua `BookingService`, đúng 1 booking được tạo,
@@ -312,7 +316,7 @@ Base path: `/api/v1`. Chi tiết đầy đủ trên Swagger UI.
 
 ## 8. Kiểm thử
 
-106 test tự động (`./mvnw verify`): 30 unit test và 76 integration test trên PostgreSQL thật (Testcontainers).
+109 test tự động (`./mvnw verify`): 33 unit test và 76 integration test trên PostgreSQL thật (Testcontainers).
 GitHub Actions (`.github/workflows/ci.yml`) chạy toàn bộ mỗi lần push, rồi dựng `docker compose up --build`
 và chạy collection Postman trên app thật.
 
@@ -320,9 +324,10 @@ và chạy collection Postman trên app thật.
 |---|---|---|
 | `BookingPolicyTest` | 21 | R2–R8, R11 với `Clock` cố định: biên đúng lúc này, đúng 90 ngày, 07:00 / 20:00, giờ UTC và giờ VN |
 | `RoomServiceTest` | 2 | Tạo phòng trùng tên đồng thời (unique violation) → 409, lỗi DB khác không bị che |
+| `BookingServiceTest` | 3 | Thua cuộc đua đặt phòng: `23P01` và `40P01` (deadlock trong bước kiểm tra constraint) đều → 409; lỗi lock khác không bị che |
 | `UserServiceTest` | 4 | Không hạ quyền / khóa admin cuối cùng; admin không tự khóa mình |
 | `DemoBookingSeederTest` | 3 | Booking demo luôn thỏa `BookingPolicy` và không trùng nhau (sức chứa đọc từ SQL seed phòng) |
-| `NoOverlapConstraintIT` | 7 | Ràng buộc DB: chồng lấn bị chặn, nối tiếp hợp lệ, hủy giải phóng slot, **20 luồng đồng thời chỉ 1 thành công** |
+| `NoOverlapConstraintIT` | 7 | Ràng buộc DB: chồng lấn bị chặn, nối tiếp hợp lệ, hủy giải phóng slot, **20 luồng đồng thời chỉ 1 thành công** (các luồng thua nhận `23P01` hoặc `40P01`) |
 | `BookingApiIT` | 20 | Tạo / sửa / hủy qua HTTP: 409 kèm người giữ slot, 422 kèm số hiệu luật, quyền chủ / admin, `version` cũ → 409, **10 request đồng thời → 1 booking**, tài khoản bị khóa dùng token cũ → 403, admin bị hạ quyền không sửa / hủy được booking người khác |
 | `BookingListIT` | 6 | Booking của tôi (sắp tới / lịch sử / trạng thái), tìm kiếm của admin, phân trang |
 | `AvailabilityIT` | 7 | Phòng trống: chồng lấn một phần, nối tiếp, booking đã hủy, sức chứa, thiết bị, thứ tự |

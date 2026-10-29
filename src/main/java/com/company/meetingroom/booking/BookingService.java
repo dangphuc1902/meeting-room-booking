@@ -8,7 +8,7 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.DataAccessException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -38,7 +38,7 @@ import com.company.meetingroom.user.UserRepository;
  * Double booking: the overlap query below only produces a friendly 409 that names who holds
  * the slot. Correctness comes from the {@code no_overlapping_bookings} EXCLUDE constraint:
  * when two requests pass the pre-check at the same time, the loser's insert fails with
- * SQLSTATE 23P01 and is turned into the same 409.
+ * SQLSTATE 23P01 (or 40P01, see {@link #saveAndFlush}) and is turned into the same 409.
  */
 @Service
 public class BookingService {
@@ -216,11 +216,17 @@ public class BookingService {
         }
     }
 
+    /**
+     * A losing concurrent write surfaces either as an exclusion violation (23P01) or, when several
+     * requests for the same slot wait on each other inside the constraint check, as a deadlock (40P01)
+     * that PostgreSQL resolves by aborting one of them. The only locks this transaction waits for are
+     * those of the constraint check, so both mean "someone else took the slot" and become the same 409.
+     */
     private Booking saveAndFlush(Booking booking) {
         try {
             return bookings.saveAndFlush(booking);
-        } catch (DataIntegrityViolationException ex) {
-            if (PgErrors.isExclusionViolation(ex)) {
+        } catch (DataAccessException ex) {
+            if (PgErrors.isExclusionViolation(ex) || PgErrors.isDeadlock(ex)) {
                 throw overlap("The room was booked by someone else for this time just now");
             }
             throw ex;

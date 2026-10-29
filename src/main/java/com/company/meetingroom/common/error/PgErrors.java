@@ -8,12 +8,22 @@ public final class PgErrors {
     /** SQLSTATE raised when an EXCLUDE constraint (our no-overlap rule) is violated. */
     public static final String EXCLUSION_VIOLATION = "23P01";
     public static final String UNIQUE_VIOLATION = "23505";
+    /**
+     * SQLSTATE raised when PostgreSQL breaks a deadlock. Concurrent inserts into the same slot can
+     * deadlock while checking the EXCLUDE constraint: each one inserts its index entry, then waits
+     * for the other's transaction to finish.
+     */
+    public static final String DEADLOCK_DETECTED = "40P01";
 
     private PgErrors() {
     }
 
     public static boolean isExclusionViolation(Throwable ex) {
         return hasSqlState(ex, EXCLUSION_VIOLATION);
+    }
+
+    public static boolean isDeadlock(Throwable ex) {
+        return hasSqlState(ex, DEADLOCK_DETECTED);
     }
 
     public static boolean isUniqueViolation(Throwable ex) {

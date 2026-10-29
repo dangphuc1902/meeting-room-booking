@@ -18,6 +18,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
@@ -113,8 +114,9 @@ class NoOverlapConstraintIT extends AbstractIntegrationTest {
                 try {
                     insertBooking(roomId, at(14, 0), at(15, 0));
                     succeeded.incrementAndGet();
-                } catch (DataIntegrityViolationException ex) {
-                    if (PgErrors.isExclusionViolation(ex)) {
+                } catch (DataAccessException ex) {
+                    // Losers get 23P01, or 40P01 when they deadlock on each other inside the constraint check.
+                    if (PgErrors.isExclusionViolation(ex) || PgErrors.isDeadlock(ex)) {
                         rejected.incrementAndGet();
                     } else {
                         throw ex;

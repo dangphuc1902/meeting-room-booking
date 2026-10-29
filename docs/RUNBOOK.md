@@ -111,6 +111,7 @@ xem bằng `GET /api/v1/bookings?userId={id}` và hủy nếu cần.
 | `/actuator/health` DOWN (chi tiết `db`), `liveness` UP | DB tạm mất kết nối | Thường tự hồi phục khi DB trở lại (Hikari tự kết nối lại); nếu không, `docker compose restart app` |
 | `Bind for 0.0.0.0:8080 failed: port is already allocated` | Cổng bị chiếm | Đổi `APP_PORT` (hoặc `DB_PORT`) trong `.env` |
 | Nhiều 409 `booking-overlap` | Bình thường khi tranh slot | Constraint `no_overlapping_bookings` đang làm đúng việc; không tắt |
+| Log có `deadlock detected ... while checking exclusion constraint` (SQLState `40P01`) | Nhiều người đặt cùng một slot cùng lúc | Bình thường: PostgreSQL hủy một bên, người đó nhận 409. Chỉ cần điều tra nếu đi kèm lỗi 500 |
 | Người dùng báo 401 hàng loạt sau khi deploy | `JWT_SECRET` có bị đổi? | Đăng nhập lại; nếu đổi ngoài ý muốn, khôi phục giá trị cũ |
 | Hết admin đăng nhập được | — | Ứng dụng luôn giữ ≥ 1 admin đang hoạt động. Nếu vẫn mất (DB bị sửa tay): `UPDATE users SET active = true WHERE email = '<admin>';` qua `psql` |
 
