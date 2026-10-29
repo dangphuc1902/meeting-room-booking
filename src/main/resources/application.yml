@@ -52,13 +52,15 @@ app:
   # Business time zone: working hours and "a day" are evaluated here. Storage is always UTC.
   zone-id: Asia/Ho_Chi_Minh
   jwt:
-    secret: ${APP_JWT_SECRET}         # no default: the app refuses to start without it (demo profile has one)
+    # Empty when unset (an unresolved ${...} would be taken literally), so validation stops startup.
+    # Only the demo profile has a default.
+    secret: ${APP_JWT_SECRET:}
     issuer: meeting-room-booking
     ttl: 8h
   bootstrap:
     admin:
       email: ${APP_BOOTSTRAP_ADMIN_EMAIL:admin@company.local}
-      password: ${APP_BOOTSTRAP_ADMIN_PASSWORD}
+      password: ${APP_BOOTSTRAP_ADMIN_PASSWORD:}   # same: blank fails @NotBlank at startup
       full-name: System Administrator
   booking:
     working-day-start: "07:00"
