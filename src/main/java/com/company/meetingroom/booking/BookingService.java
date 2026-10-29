@@ -62,13 +62,13 @@ public class BookingService {
 
     @Transactional
     public BookingResponse create(AuthUser caller, BookingRequest request) {
+        User owner = requireActiveUser(caller);
         Room room = findRoom(request.roomId());
         Instant start = request.startTime().toInstant();
         Instant end = request.endTime().toInstant();
         policy.check(room, start, end, request.attendeesCount());
         rejectOverlaps(room, start, end, null);
 
-        User owner = users.findById(caller.id()).orElseThrow(() -> new NotFoundException("User", caller.id()));
         Booking booking = new Booking(room, owner, request.title().strip(), request.description(),
                 request.attendeesCount(), start, end);
         return BookingResponse.of(saveAndFlush(booking), zone);
@@ -83,6 +83,7 @@ public class BookingService {
     /** R10: only a CONFIRMED booking that has not started; the new slot must pass every rule again. */
     @Transactional
     public BookingResponse update(AuthUser caller, Long id, BookingUpdateRequest request) {
+        requireActiveUser(caller);
         Booking booking = findAccessible(caller, id);
         if (booking.getVersion() != request.version()) {
             throw new ConflictException("concurrent-modification", "Concurrent modification",
@@ -107,6 +108,7 @@ public class BookingService {
     /** R9: owner or admin; soft cancel frees the slot immediately (the constraint only covers CONFIRMED). */
     @Transactional
     public BookingResponse cancel(AuthUser caller, Long id, String reason) {
+        requireActiveUser(caller);
         Booking booking = findAccessible(caller, id);
         requireConfirmed(booking);
         Instant now = clock.instant();
@@ -168,6 +170,15 @@ public class BookingService {
 
     private Room findRoom(Long roomId) {
         return rooms.findById(roomId).orElseThrow(() -> new NotFoundException("Room", roomId));
+    }
+
+    /** JWTs stay valid until they expire, so a deactivated account is re-checked here before any write. */
+    private User requireActiveUser(AuthUser caller) {
+        User user = users.findById(caller.id()).orElseThrow(() -> new NotFoundException("User", caller.id()));
+        if (!user.isActive()) {
+            throw new AccessDeniedException("Account is deactivated");
+        }
+        return user;
     }
 
     /** Owner or admin, otherwise 403. */

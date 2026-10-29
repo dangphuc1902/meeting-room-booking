@@ -246,8 +246,9 @@ Giữ lịch sử ai hủy, khi nào, vì sao; partial constraint giúp slot đ�
 Phòng và tài khoản cũng chỉ bị khóa (`active = false`), không xóa, vì booking cũ còn tham chiếu tới.
 
 ### JWT stateless, roles trong token
-Token sống 8 giờ (một ngày làm việc). Đánh đổi: vô hiệu hóa user không thu hồi token đang có
-cho tới khi hết hạn; đổi role cũng chỉ có hiệu lực từ lần đăng nhập sau.
+Token sống 8 giờ (một ngày làm việc). Đánh đổi: vô hiệu hóa user không thu hồi token đang có,
+token cũ vẫn hợp lệ tới khi hết hạn, nhưng tài khoản bị khóa không thể tạo, sửa hay hủy booking (kiểm tra trong service);
+đổi role cũng chỉ có hiệu lực từ lần đăng nhập sau.
 Cải tiến khi lên production: token ngắn hạn + refresh token, hoặc kiểm tra `active` mỗi request.
 
 ### Giới hạn đã biết

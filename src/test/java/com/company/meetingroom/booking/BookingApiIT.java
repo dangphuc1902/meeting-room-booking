@@ -5,6 +5,7 @@ import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -338,6 +339,27 @@ class BookingApiIT extends AbstractIntegrationTest {
         send(aliceToken, put("/api/v1/bookings/{id}", id), updateBody("11:00", "12:00", 2, 1))
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.type", endsWith("/booking-cancelled")));
+    }
+
+    // ---------------------------------------------------------------- deactivated account
+
+    @Test
+    void deactivatedUser_withStillValidToken_cannotCreateUpdateOrCancel() throws Exception {
+        long id = createdId(aliceToken, "09:00", "10:00");
+        send(adminToken, patch("/api/v1/users/{id}/status", alice.getId()), """
+                {"active":false}
+                """).andExpect(status().isOk());
+
+        create(aliceToken, "11:00", "12:00", 2).andExpect(status().isForbidden());
+        send(aliceToken, put("/api/v1/bookings/{id}", id), updateBody("11:00", "12:00", 2, 0))
+                .andExpect(status().isForbidden());
+        mvc.perform(post("/api/v1/bookings/{id}/cancel", id).header("Authorization", "Bearer " + aliceToken))
+                .andExpect(status().isForbidden())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON));
+
+        // An admin can still clean up the booking.
+        mvc.perform(post("/api/v1/bookings/{id}/cancel", id).header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk());
     }
 
     // ---------------------------------------------------------------- helpers
