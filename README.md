@@ -186,7 +186,9 @@ CONSTRAINT no_overlapping_bookings EXCLUDE USING gist (
 - `'[)'`: nửa mở, các cuộc họp nối tiếp nhau hợp lệ.
 - `WHERE status = 'CONFIRMED'`: hủy booking là giải phóng slot ngay, không cần xóa row.
 - `btree_gist`: cần để dùng cột scalar `room_id` trong index GiST.
-- Index GiST của constraint cũng phục vụ luôn truy vấn "booking của phòng X giao với khoảng [a, b)".
+- Index GiST của constraint dùng cho việc kiểm tra trùng khi ghi. Các truy vấn đọc hiện so sánh cột `start_time`/`end_time`
+  trực tiếp nên chỉ tận dụng được phần `room_id` của index. Với ~10 phòng điều này không đáng kể; khi dữ liệu lớn
+  sẽ chuyển sang so sánh `tstzrange(...) && tstzrange(:from, :to)` để dùng trọn index.
 
 ---
 
@@ -253,7 +255,7 @@ Cải tiến khi lên production: token ngắn hạn + refresh token, hoặc ki�
 
 ### Giới hạn đã biết
 - Kiểm tra "còn ít nhất một admin" (U5) không khóa dòng: hai admin hạ quyền nhau đúng cùng lúc có thể không còn admin.
-  Chấp nhận vì hiếm; khắc phục bằng `SELECT ... FOR UPDATE` trên các admin, hoặc tạo lại admin qua cấu hình bootstrap.
+  Chấp nhận vì hiếm; khắc phục bằng `SELECT ... FOR UPDATE` trên các admin đang hoạt động.
 - Khóa tài khoản không tự hủy các booking sắp tới của người đó; ADMIN tìm (`GET /bookings?userId=`) và hủy nếu cần.
 
 ### Schema do Flyway quản lý
