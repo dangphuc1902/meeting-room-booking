@@ -5,7 +5,6 @@ import java.time.LocalDate;
 
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -18,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+import com.company.meetingroom.auth.AdminOnly;
 import com.company.meetingroom.auth.AuthUser;
 import com.company.meetingroom.booking.dto.BookingRequest;
 import com.company.meetingroom.booking.dto.BookingResponse;
@@ -66,7 +66,7 @@ public class BookingController {
     }
 
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @AdminOnly
     @Operation(summary = "Search all bookings (admin); filters are optional, from/to are days in the business zone")
     public PageResponse<BookingResponse> search(
             @RequestParam(required = false) Long roomId,

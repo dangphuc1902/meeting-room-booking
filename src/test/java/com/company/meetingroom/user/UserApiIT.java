@@ -1,5 +1,6 @@
 package com.company.meetingroom.user;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.matchesRegex;
@@ -181,6 +182,51 @@ class UserApiIT extends AbstractIntegrationTest {
                 {"fullName":"Me","role":"USER"}
                 """)
                 .andExpect(status().isUnprocessableEntity());
+    }
+
+    @Test
+    void deactivatedAdmin_withStillValidToken_losesAdminRights_andCannotReactivateThemselves() throws Exception {
+        User other = users.save(new User("other-admin-" + tag + "@test.local", "x", "Other " + tag, Role.ADMIN));
+        String otherToken = tokenService.issue(other).value();
+        long victim = create("victim", "Welcome@123");
+        send(adminToken, patch("/api/v1/users/{id}/status", other.getId()), """
+                {"active":false}
+                """).andExpect(status().isOk());
+
+        // The token still carries ADMIN and has not expired, but the account behind it is deactivated.
+        send(otherToken, patch("/api/v1/users/{id}/status", other.getId()), """
+                {"active":true}
+                """)
+                .andExpect(status().isForbidden())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON));
+        send(otherToken, put("/api/v1/users/{id}/password", victim), """
+                {"newPassword":"Hijack@123"}
+                """).andExpect(status().isForbidden());
+        mvc.perform(get("/api/v1/users").header("Authorization", "Bearer " + otherToken))
+                .andExpect(status().isForbidden());
+
+        assertThat(users.findById(other.getId()).orElseThrow().isActive()).isFalse();
+        login(email("victim"), "Welcome@123").andExpect(status().isOk());
+    }
+
+    @Test
+    void demotedAdmin_withStillValidToken_losesAdminRights() throws Exception {
+        User other = users.save(new User("demoted-" + tag + "@test.local", "x", "Demoted " + tag, Role.ADMIN));
+        String otherToken = tokenService.issue(other).value();
+        send(adminToken, put("/api/v1/users/{id}", other.getId()), """
+                {"fullName":"Demoted %s","role":"USER"}
+                """.formatted(tag)).andExpect(status().isOk());
+
+        mvc.perform(get("/api/v1/users").header("Authorization", "Bearer " + otherToken))
+                .andExpect(status().isForbidden());
+        send(otherToken, put("/api/v1/users/{id}", other.getId()), """
+                {"fullName":"Demoted %s","role":"ADMIN"}
+                """.formatted(tag)).andExpect(status().isForbidden());
+        send(otherToken, post("/api/v1/rooms"), """
+                {"name":"Rogue-%s","location":"B1","capacity":4,"equipment":[]}
+                """.formatted(tag)).andExpect(status().isForbidden());
+
+        assertThat(users.findById(other.getId()).orElseThrow().getRole()).isEqualTo(Role.USER);
     }
 
     @Test

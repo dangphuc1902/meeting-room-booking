@@ -83,8 +83,8 @@ public class BookingService {
     /** R10: only a CONFIRMED booking that has not started; the new slot must pass every rule again. */
     @Transactional
     public BookingResponse update(AuthUser caller, Long id, BookingUpdateRequest request) {
-        requireActiveUser(caller);
-        Booking booking = findAccessible(caller, id);
+        User actor = requireActiveUser(caller);
+        Booking booking = findAccessible(actor.getId(), actor.isAdmin(), id);
         if (booking.getVersion() != request.version()) {
             throw new ConflictException("concurrent-modification", "Concurrent modification",
                     "The booking was modified by someone else. Reload it and try again.");
@@ -108,8 +108,8 @@ public class BookingService {
     /** R9: owner or admin; soft cancel frees the slot immediately (the constraint only covers CONFIRMED). */
     @Transactional
     public BookingResponse cancel(AuthUser caller, Long id, String reason) {
-        requireActiveUser(caller);
-        Booking booking = findAccessible(caller, id);
+        User actor = requireActiveUser(caller);
+        Booking booking = findAccessible(actor.getId(), actor.isAdmin(), id);
         requireConfirmed(booking);
         Instant now = clock.instant();
         if (booking.hasEnded(now)) {
@@ -181,10 +181,15 @@ public class BookingService {
         return user;
     }
 
-    /** Owner or admin, otherwise 403. */
+    /** Owner or admin, otherwise 403. Reads trust the token's role. */
     private Booking findAccessible(AuthUser caller, Long id) {
+        return findAccessible(caller.id(), caller.isAdmin(), id);
+    }
+
+    /** Writes pass the role read from the database, so a demoted admin cannot edit other people's bookings. */
+    private Booking findAccessible(Long callerId, boolean admin, Long id) {
         Booking booking = bookings.findById(id).orElseThrow(() -> new NotFoundException("Booking", id));
-        if (!caller.isAdmin() && !booking.isOwnedBy(caller.id())) {
+        if (!admin && !booking.isOwnedBy(callerId)) {
             throw new AccessDeniedException("Not the owner of booking " + id);
         }
         return booking;

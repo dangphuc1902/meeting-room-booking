@@ -362,6 +362,22 @@ class BookingApiIT extends AbstractIntegrationTest {
                 .andExpect(status().isOk());
     }
 
+    @Test
+    void demotedAdmin_withStillValidToken_cannotEditOrCancelOthersBookings() throws Exception {
+        long id = createdId(aliceToken, "09:00", "10:00");
+        User former = newUser(Role.ADMIN, "Former admin");
+        String formerToken = token(former);
+        former.changeRole(Role.USER);
+        users.save(former);
+
+        send(formerToken, put("/api/v1/bookings/{id}", id), updateBody("11:00", "12:00", 2, 0))
+                .andExpect(status().isForbidden());
+        mvc.perform(post("/api/v1/bookings/{id}/cancel", id).header("Authorization", "Bearer " + formerToken))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/api/v1/bookings").header("Authorization", "Bearer " + formerToken))
+                .andExpect(status().isForbidden());
+    }
+
     // ---------------------------------------------------------------- helpers
 
     private ResultActions create(String token, String start, String end, int attendees) throws Exception {

@@ -150,7 +150,7 @@ chỉ chủ booking và ADMIN thấy.
 com.company.meetingroom
 ├── common/   error   ApiException + 400/404/409/422, GlobalExceptionHandler (RFC 7807), PgErrors (SQLSTATE)
 │             web     PageResponse      config  OpenAPI      time  Clock, ZoneId
-├── auth/     SecurityConfig, TokenService (JWT), AuthController (login, me), AuthUser
+├── auth/     SecurityConfig, TokenService (JWT), AuthController (login, me), AuthUser, @AdminOnly + AccountChecks
 ├── user/     User, UserService, UserController (quản lý tài khoản), AccountBootstrap
 ├── room/     Room, Equipment, RoomService, RoomController (CRUD phòng)
 └── booking/  Booking, BookingPolicy (R2–R11), BookingService, BookingController (đặt / sửa / hủy / danh sách)
@@ -252,8 +252,14 @@ Phòng và tài khoản cũng chỉ bị khóa (`active = false`), không xóa, 
 
 ### JWT stateless, roles trong token
 Token sống 8 giờ (một ngày làm việc). Đánh đổi: vô hiệu hóa user không thu hồi token đang có,
-token cũ vẫn hợp lệ tới khi hết hạn, nhưng tài khoản bị khóa không thể tạo, sửa hay hủy booking (kiểm tra trong service);
-đổi role cũng chỉ có hiệu lực từ lần đăng nhập sau.
+token cũ vẫn hợp lệ tới khi hết hạn. Để role trong token không đủ để làm thao tác nguy hiểm, mọi thao tác ghi và mọi API admin
+đều kiểm tra lại tài khoản trong DB:
+- Tài khoản bị khóa không thể tạo, sửa hay hủy booking (`BookingService`).
+- API admin dùng `@AdminOnly` (`hasRole('ADMIN')` + `AccountChecks.isActiveAdmin`): admin bị khóa hoặc bị hạ quyền nhận 403 ngay,
+  không thể dùng token cũ để tự mở khóa mình, tạo tài khoản hay đặt lại mật khẩu người khác.
+- Sửa / hủy booking của người khác dùng role đọc từ DB, không dùng role trong token.
+
+Các thao tác chỉ đọc vẫn tin token tới khi hết hạn (đổi role có hiệu lực đầy đủ từ lần đăng nhập sau).
 Cải tiến khi lên production: token ngắn hạn + refresh token, hoặc kiểm tra `active` mỗi request.
 
 ### Giới hạn đã biết
@@ -306,7 +312,7 @@ Base path: `/api/v1`. Chi tiết đầy đủ trên Swagger UI.
 
 ## 8. Kiểm thử
 
-103 test tự động (`./mvnw verify`): 30 unit test và 73 integration test trên PostgreSQL thật (Testcontainers).
+106 test tự động (`./mvnw verify`): 30 unit test và 76 integration test trên PostgreSQL thật (Testcontainers).
 GitHub Actions (`.github/workflows/ci.yml`) chạy toàn bộ mỗi lần push, rồi dựng `docker compose up --build`
 và chạy collection Postman trên app thật.
 
@@ -317,14 +323,14 @@ và chạy collection Postman trên app thật.
 | `UserServiceTest` | 4 | Không hạ quyền / khóa admin cuối cùng; admin không tự khóa mình |
 | `DemoBookingSeederTest` | 3 | Booking demo luôn thỏa `BookingPolicy` và không trùng nhau (sức chứa đọc từ SQL seed phòng) |
 | `NoOverlapConstraintIT` | 7 | Ràng buộc DB: chồng lấn bị chặn, nối tiếp hợp lệ, hủy giải phóng slot, **20 luồng đồng thời chỉ 1 thành công** |
-| `BookingApiIT` | 19 | Tạo / sửa / hủy qua HTTP: 409 kèm người giữ slot, 422 kèm số hiệu luật, quyền chủ / admin, `version` cũ → 409, **10 request đồng thời → 1 booking**, tài khoản bị khóa dùng token cũ → 403 |
+| `BookingApiIT` | 20 | Tạo / sửa / hủy qua HTTP: 409 kèm người giữ slot, 422 kèm số hiệu luật, quyền chủ / admin, `version` cũ → 409, **10 request đồng thời → 1 booking**, tài khoản bị khóa dùng token cũ → 403, admin bị hạ quyền không sửa / hủy được booking người khác |
 | `BookingListIT` | 6 | Booking của tôi (sắp tới / lịch sử / trạng thái), tìm kiếm của admin, phân trang |
 | `AvailabilityIT` | 7 | Phòng trống: chồng lấn một phần, nối tiếp, booking đã hủy, sức chứa, thiết bị, thứ tự |
 | `ScheduleIT` | 6 | Lịch phòng, lịch ngày, ranh giới nửa đêm theo giờ VN, ẩn mô tả với người khác |
 | `RoomApiIT` | 11 | CRUD phòng, quyền admin, trùng tên, khóa phòng |
 | `RoomNameConstraintIT` | 1 | DB chặn tên phòng chỉ khác hoa / thường (bỏ qua kiểm tra ở service) |
 | `AdminLockIT` | 1 | Kiểm tra "còn ≥ 1 admin" thật sự khóa dòng: transaction khác không lock được cho tới khi commit |
-| `UserApiIT` | 10 | Tạo tài khoản rồi đăng nhập được, trùng email, khóa / mở khóa, đổi và đặt lại mật khẩu |
+| `UserApiIT` | 12 | Tạo tài khoản rồi đăng nhập được, trùng email, khóa / mở khóa, đổi và đặt lại mật khẩu, admin bị khóa / hạ quyền dùng token cũ → 403 (không tự mở khóa được) |
 | `AuthFlowIT` | 5 | Đăng nhập, dùng token, lỗi 400/401 đúng định dạng RFC 7807 |
 
 Ngoài ra, collection Postman (`postman/`, mục 1) chạy 70 request, 157 assertion trên app thật dựng bằng `docker compose`.

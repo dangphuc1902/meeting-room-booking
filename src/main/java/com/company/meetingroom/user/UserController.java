@@ -3,7 +3,6 @@ package com.company.meetingroom.user;
 import java.net.URI;
 
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -17,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+import com.company.meetingroom.auth.AdminOnly;
 import com.company.meetingroom.auth.AuthUser;
 import com.company.meetingroom.common.web.PageResponse;
 import com.company.meetingroom.user.dto.ChangePasswordRequest;
@@ -46,7 +46,7 @@ public class UserController {
     }
 
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @AdminOnly
     @Operation(summary = "Search users (admin): q matches part of email or name")
     public PageResponse<UserResponse> search(
             @RequestParam(name = "q", required = false) String query,
@@ -58,14 +58,14 @@ public class UserController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @AdminOnly
     @Operation(summary = "User details (admin)")
     public UserResponse get(@PathVariable Long id) {
         return userService.get(id);
     }
 
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @AdminOnly
     @Operation(summary = "Create an account with an initial password (admin)")
     public ResponseEntity<UserResponse> create(@Valid @RequestBody CreateUserRequest request) {
         UserResponse created = userService.create(request);
@@ -75,7 +75,7 @@ public class UserController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @AdminOnly
     @Operation(summary = "Change name and role (admin); the last active admin cannot be demoted")
     public UserResponse update(@AuthenticationPrincipal Jwt jwt, @PathVariable Long id,
             @Valid @RequestBody UpdateUserRequest request) {
@@ -83,7 +83,7 @@ public class UserController {
     }
 
     @PatchMapping("/{id}/status")
-    @PreAuthorize("hasRole('ADMIN')")
+    @AdminOnly
     @Operation(summary = "Activate or deactivate an account (admin); deactivated users cannot log in")
     public UserResponse changeStatus(@AuthenticationPrincipal Jwt jwt, @PathVariable Long id,
             @Valid @RequestBody UserStatusRequest request) {
@@ -91,7 +91,7 @@ public class UserController {
     }
 
     @PutMapping("/{id}/password")
-    @PreAuthorize("hasRole('ADMIN')")
+    @AdminOnly
     @Operation(summary = "Set a new password for a user who forgot theirs (admin)")
     public ResponseEntity<Void> resetPassword(@PathVariable Long id, @Valid @RequestBody ResetPasswordRequest request) {
         userService.resetPassword(id, request.newPassword());

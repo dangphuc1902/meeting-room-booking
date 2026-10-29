@@ -98,7 +98,7 @@ Mọi token cũ mất hiệu lực ngay, người dùng chỉ cần đăng nhậ
 Đổi `ADMIN_PASSWORD` trong `.env` **không** đổi mật khẩu admin đã tồn tại.
 
 **Nhân viên nghỉ việc**: `PATCH /api/v1/users/{id}/status` với `{"active":false}`. Tài khoản không đăng nhập được,
-token đang có không tạo / sửa / hủy booking được nữa. Booking sắp tới của họ không tự hủy:
+token đang có không tạo / sửa / hủy booking được nữa; nếu là admin, token cũ cũng mất quyền gọi API admin ngay. Booking sắp tới của họ không tự hủy:
 xem bằng `GET /api/v1/bookings?userId={id}` và hủy nếu cần.
 
 ## 5. Xử lý sự cố

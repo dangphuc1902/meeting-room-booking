@@ -4,7 +4,6 @@ import java.net.URI;
 import java.util.List;
 
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -18,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+import com.company.meetingroom.auth.AdminOnly;
 import com.company.meetingroom.auth.AuthUser;
 import com.company.meetingroom.room.dto.RoomRequest;
 import com.company.meetingroom.room.dto.RoomResponse;
@@ -52,7 +52,7 @@ public class RoomController {
     }
 
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @AdminOnly
     @Operation(summary = "Create a room (admin)")
     public ResponseEntity<RoomResponse> create(@Valid @RequestBody RoomRequest request) {
         RoomResponse created = roomService.create(request);
@@ -62,14 +62,14 @@ public class RoomController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @AdminOnly
     @Operation(summary = "Replace name, location, capacity and equipment of a room (admin)")
     public RoomResponse update(@PathVariable Long id, @Valid @RequestBody RoomRequest request) {
         return roomService.update(id, request);
     }
 
     @PatchMapping("/{id}/status")
-    @PreAuthorize("hasRole('ADMIN')")
+    @AdminOnly
     @Operation(summary = "Activate or deactivate a room (admin); existing bookings are kept")
     public RoomResponse changeStatus(@PathVariable Long id, @Valid @RequestBody RoomStatusRequest request) {
         return roomService.changeStatus(id, request.active());
