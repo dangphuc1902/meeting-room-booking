@@ -12,7 +12,7 @@ INSERT INTO rooms (name, location, capacity) VALUES
     ('Hoi An',     'Floor 5', 8),
     ('Con Dao',    'Floor 5', 20),
     ('Mekong',     'Floor 6', 30)
-ON CONFLICT (name) DO NOTHING;
+ON CONFLICT ((lower(name))) DO NOTHING;
 
 INSERT INTO room_equipment (room_id, equipment)
 SELECT r.id, e.equipment
