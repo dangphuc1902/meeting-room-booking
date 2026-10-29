@@ -52,13 +52,13 @@ app:
   # Business time zone: working hours and "a day" are evaluated here. Storage is always UTC.
   zone-id: Asia/Ho_Chi_Minh
   jwt:
-    secret: ${APP_JWT_SECRET:local-dev-only-secret-change-me-0123456789abcdef}
+    secret: ${APP_JWT_SECRET}         # no default: the app refuses to start without it (demo profile has one)
     issuer: meeting-room-booking
     ttl: 8h
   bootstrap:
     admin:
       email: ${APP_BOOTSTRAP_ADMIN_EMAIL:admin@company.local}
-      password: ${APP_BOOTSTRAP_ADMIN_PASSWORD:Admin@123}
+      password: ${APP_BOOTSTRAP_ADMIN_PASSWORD}
       full-name: System Administrator
   booking:
     working-day-start: "07:00"
@@ -73,4 +73,4 @@ app:
 logging:
   level:
     root: INFO
-    com.company.meetingroom: DEBUG
+    com.company.meetingroom: INFO

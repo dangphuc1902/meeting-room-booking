@@ -27,5 +27,8 @@ public abstract class AbstractIntegrationTest {
         registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
         registry.add("spring.datasource.username", POSTGRES::getUsername);
         registry.add("spring.datasource.password", POSTGRES::getPassword);
+        // The default profile has no secrets on purpose; tests supply their own.
+        registry.add("app.jwt.secret", () -> "test-only-secret-0123456789abcdef0123456789");
+        registry.add("app.bootstrap.admin.password", () -> "Admin@123");
     }
 }

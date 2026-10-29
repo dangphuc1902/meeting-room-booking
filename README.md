@@ -39,6 +39,9 @@ Profile `demo` còn seed sẵn 10 phòng họp và 9 cuộc họp trong 3 ngày 
 Muốn chạy với database trống: đặt `SPRING_PROFILES_ACTIVE=default` trong `.env`.
 Mọi cấu hình đều có giá trị mặc định; xem `.env.example` để tùy chỉnh (copy thành `.env`).
 
+> Giá trị mặc định chỉ dành cho demo; production bắt buộc đặt `JWT_SECRET`, `ADMIN_PASSWORD`, nếu thiếu thì app không khởi động.
+> PostgreSQL trong compose chỉ mở cổng trên `127.0.0.1`.
+
 ```bash
 # Đăng nhập lấy token
 curl -s -X POST http://localhost:8080/api/v1/auth/login \

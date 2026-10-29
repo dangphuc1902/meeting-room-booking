@@ -4,8 +4,17 @@ spring:
     locations: classpath:db/migration,classpath:db/demo
 
 app:
+  jwt:
+    # Demo/local only; production must set APP_JWT_SECRET.
+    secret: ${APP_JWT_SECRET:local-dev-only-secret-change-me-0123456789abcdef}
   bootstrap:
+    admin:
+      password: ${APP_BOOTSTRAP_ADMIN_PASSWORD:Admin@123}
     demo-user:
       email: user@company.local
       password: User@123
       full-name: Demo User
+
+logging:
+  level:
+    com.company.meetingroom: DEBUG
